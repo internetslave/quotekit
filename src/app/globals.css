@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html, body {
+  background: #0e0e0c;
+  color: #f7f7f5;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  overscroll-behavior-y: contain;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+.safe-top { padding-top: var(--safe-top); }
+.safe-bottom { padding-bottom: var(--safe-bottom); }
+
+.reader-prose {
+  font-family: "New York", Georgia, serif;
+  font-size: 18px;
+  line-height: 1.7;
+  letter-spacing: 0.005em;
+}
+.reader-prose p { margin: 0 0 1em 0; }
+.reader-prose h1, .reader-prose h2, .reader-prose h3 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Slide deck animations */
+@keyframes slidein {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.slide-anim { animation: slidein 280ms ease-out; }
+
+/* PDF.js canvas sizing */
+.pdf-canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Hide scrollbars on mobile carousels */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+button { -webkit-user-select: none; user-select: none; }
