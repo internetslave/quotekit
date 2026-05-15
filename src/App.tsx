@@ -47,7 +47,7 @@ import type {
   ReadingProgress
 } from "./types";
 import { createId } from "./utils/id";
-import { estimateReadingMinutes, todayKey } from "./utils/text";
+import { estimateReadingMinutes, todayKey, yesterdayKey } from "./utils/text";
 
 type Screen = "library" | "reader";
 type AsyncStatus = "idle" | "loading" | "error";
@@ -73,6 +73,7 @@ export default function App() {
   });
   const [companionTab, setCompanionTab] = useState<CompanionTab>("overview");
   const [appLoading, setAppLoading] = useState(true);
+  const [bootError, setBootError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [importMessage, setImportMessage] = useState("");
   const [aiStatus, setAiStatus] = useState<AsyncStatus>("idle");
@@ -130,13 +131,34 @@ export default function App() {
       }
       setAppLoading(false);
     }
-    loadInitialData().catch((error) => {
-      console.error(error);
-      setImportMessage("ReadQuest could not open local storage. Try refreshing the page.");
-      setAppLoading(false);
-    });
+    // If IndexedDB never opens (private mode, locked storage, etc.) the boot
+    // promise hangs forever. Trip an explicit timeout so the user sees a real
+    // error instead of an infinite spinner.
+    const bootTimeout = window.setTimeout(() => {
+      if (mounted) {
+        setBootError("Local storage didn't respond. This can happen in private browsing or if storage is full.");
+        setAppLoading(false);
+      }
+    }, 5000);
+    loadInitialData()
+      .then(() => {
+        window.clearTimeout(bootTimeout);
+      })
+      .catch((error) => {
+        window.clearTimeout(bootTimeout);
+        console.error("[ReadQuest] boot failed:", error);
+        if (mounted) {
+          setBootError(
+            error instanceof Error
+              ? error.message
+              : "ReadQuest could not open local storage."
+          );
+          setAppLoading(false);
+        }
+      });
     return () => {
       mounted = false;
+      window.clearTimeout(bootTimeout);
     };
   }, []);
 
@@ -180,17 +202,21 @@ export default function App() {
       if (!chapter) return;
       const previous = progressByBook[book.id];
       const today = todayKey();
+      const yesterday = yesterdayKey();
       const percent = Math.round(((nextChapterIndex + 1) / book.chapters.length) * 100);
+      const nextStreak = (() => {
+        if (!previous?.lastReadDate) return 1;
+        if (previous.lastReadDate === today) return previous.streakCount || 1;
+        if (previous.lastReadDate === yesterday) return (previous.streakCount || 0) + 1;
+        return 1;
+      })();
       const nextProgress: ReadingProgress = {
         bookId: book.id,
         chapterId: chapter.id,
         chapterIndex: nextChapterIndex,
         percent,
         completedChapterIds: completedChapterIds ?? previous?.completedChapterIds ?? [],
-        streakCount:
-          previous?.lastReadDate && previous.lastReadDate !== today
-            ? previous.streakCount + 1
-            : previous?.streakCount ?? 1,
+        streakCount: nextStreak,
         lastReadDate: today,
         updatedAt: new Date().toISOString()
       };
@@ -421,11 +447,28 @@ export default function App() {
   if (appLoading) {
     return (
       <main className="boot-screen">
-        <div className="boot-card">
+        <div className="boot-card" role="status" aria-live="polite">
           <div className="brand-mark" aria-hidden="true">
             <BookOpen />
           </div>
-          <p>Opening your reading room…</p>
+          <p>Loading your library…</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (bootError) {
+    return (
+      <main className="boot-screen">
+        <div className="boot-card" role="alert">
+          <div className="brand-mark" aria-hidden="true" style={{ animation: "none" }}>
+            <BookOpen />
+          </div>
+          <h1>Can't reach storage</h1>
+          <p>{bootError}</p>
+          <button className="primary-button" type="button" onClick={() => window.location.reload()}>
+            Try again
+          </button>
         </div>
       </main>
     );
@@ -472,7 +515,7 @@ export default function App() {
   }
 
   return (
-    <div className={`app-shell theme-${settings.theme === "dark" ? "dark" : "paper"}`}>
+    <div className={`app-shell theme-${settings.theme}`}>
       <LibraryScreen
         books={books}
         importing={importing}

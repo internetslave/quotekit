@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import {
   BookOpen,
+  Coffee,
   FileUp,
   Flame,
   Moon,
@@ -8,8 +9,20 @@ import {
   Sun,
   Trash2
 } from "lucide-react";
-import type { Book, DailyGoal, ReaderSettings, ReadingProgress } from "../types";
+import type { Book, DailyGoal, ReaderSettings, ReadingProgress, ReaderTheme } from "../types";
 import { formatFileSize } from "../utils/text";
+
+const THEME_CYCLE: Record<ReaderTheme, ReaderTheme> = {
+  paper: "sepia",
+  sepia: "dark",
+  dark: "paper"
+};
+
+const THEME_LABEL: Record<ReaderTheme, string> = {
+  paper: "Switch to sepia theme",
+  sepia: "Switch to dark theme",
+  dark: "Switch to paper theme"
+};
 
 interface LibraryScreenProps {
   books: Book[];
@@ -58,18 +71,19 @@ export function LibraryScreen({
 }: LibraryScreenProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const streaks = Object.values(progressByBook).map((progress) => progress.streakCount ?? 0);
-  const streak = streaks.length > 0 ? Math.max(...streaks) : 0;
   const minutesRead = dailyGoal?.minutesRead ?? 0;
   const goalMinutes = dailyGoal?.targetMinutes ?? settings.dailyGoalMinutes ?? 25;
   const goalPct = Math.min(100, Math.round((minutesRead / goalMinutes) * 100));
 
-  // Pick most-recently-updated book to surface in the Today card "Continue" pill
+  // Pick most-recently-updated book to surface in the Today card "Continue" pill.
+  // Its streak is the canonical streak shown in the library — same number the
+  // companion sheet shows for that book, so the two never disagree.
   const lastBook = [...books]
     .filter((b) => progressByBook[b.id])
     .sort((a, b) =>
       (progressByBook[b.id]?.updatedAt ?? "").localeCompare(progressByBook[a.id]?.updatedAt ?? "")
     )[0];
+  const streak = lastBook ? progressByBook[lastBook.id]?.streakCount ?? 0 : 0;
 
   return (
     <main className="library-screen">
@@ -86,15 +100,15 @@ export function LibraryScreen({
         <button
           className="icon-button"
           type="button"
-          aria-label={settings.theme === "dark" ? "Use light theme" : "Use dark theme"}
+          aria-label={THEME_LABEL[settings.theme]}
           onClick={() =>
             onSettingsChange({
               ...settings,
-              theme: settings.theme === "dark" ? "paper" : "dark"
+              theme: THEME_CYCLE[settings.theme]
             })
           }
         >
-          {settings.theme === "dark" ? <Sun /> : <Moon />}
+          {settings.theme === "dark" ? <Sun /> : settings.theme === "sepia" ? <Moon /> : <Coffee />}
         </button>
       </header>
 
@@ -111,7 +125,7 @@ export function LibraryScreen({
         </div>
         <div className="today-meta">
           <strong>{minutesRead} of {goalMinutes} minutes today</strong>
-          <span>{streak > 0 ? `${streak}-day streak · keep it warm` : "Start your first reading streak"}</span>
+          <span>{streak > 0 ? `${streak}-day streak · keep it going` : "Start your first reading streak"}</span>
           <span className="progress-track">
             <span style={{ width: `${goalPct}%` }} />
           </span>

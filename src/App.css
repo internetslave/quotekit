@@ -70,7 +70,35 @@
   --r-4: 20px;
   --r-pill: 999px;
 
+  /* Type scale */
+  --text-xs: 0.72rem;
+  --text-sm: 0.85rem;
+  --text-base: 1rem;
+  --text-lg: 1.18rem;
+  --text-xl: 1.4rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: 2.1rem;
+
+  /* Spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  /* Line heights */
+  --lh-tight: 1.15;
+  --lh-snug: 1.35;
+  --lh-normal: 1.5;
+  --lh-loose: 1.75;
+
   /* Motion */
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --dur-slow: 260ms;
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
@@ -102,6 +130,36 @@
   --shadow-md: 0 8px 22px rgba(0, 0, 0, 0.45);
   --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.55);
   color-scheme: dark;
+}
+
+/* ------------- Sepia theme ------------- */
+.theme-sepia,
+.reader-sepia .companion-sheet {
+  --paper: #ead4ab;
+  --paper-strong: #f1dfb9;
+  --paper-deep: #ddc497;
+  --card: #f5e8c8;
+  --hairline: #d4ba8a;
+  --hairline-strong: #b89e6f;
+  --ink: #3a2c19;
+  --ink-2: #5a4424;
+  --muted: #8a6c3a;
+  --muted-2: #a78657;
+  --coral-soft: #ecc3a2;
+  --sage: #cbd9aa;
+  --sage-ink: #4d6f30;
+  --sky: #c8d8e1;
+  --sky-ink: #345c7a;
+  --amber: #f0d8a0;
+  --amber-ink: #7a5418;
+  --plum: #e0c8d2;
+  --plum-ink: #6b4560;
+  --rose: #e6c0b3;
+  --rose-ink: #7a3320;
+  --shadow-sm: 0 1px 2px rgba(80, 50, 18, 0.10);
+  --shadow-md: 0 6px 18px rgba(80, 50, 18, 0.14);
+  --shadow-lg: 0 24px 60px rgba(80, 50, 18, 0.22);
+  color-scheme: light;
 }
 
 * {
@@ -143,6 +201,20 @@ select {
 
 button {
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Restore a clear focus ring for keyboard / a11y tools. Coral works on every
+   theme background since each theme keeps a coral accent. */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[role="tab"]:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid var(--coral);
+  outline-offset: 2px;
+  border-radius: var(--r-1);
 }
 
 a {

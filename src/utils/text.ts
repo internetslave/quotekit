@@ -27,6 +27,12 @@ export function todayKey(date = new Date()): string {
   return date.toISOString().slice(0, 10);
 }
 
+export function yesterdayKey(date = new Date()): string {
+  const previous = new Date(date);
+  previous.setUTCDate(previous.getUTCDate() - 1);
+  return previous.toISOString().slice(0, 10);
+}
+
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
