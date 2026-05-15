@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   BookOpen,
   Coffee,
@@ -70,6 +70,14 @@ export function LibraryScreen({
   onSettingsChange
 }: LibraryScreenProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+
+  // Auto-cancel a pending delete confirmation after 4s.
+  useEffect(() => {
+    if (!confirmingDeleteId) return;
+    const t = window.setTimeout(() => setConfirmingDeleteId(null), 4000);
+    return () => window.clearTimeout(t);
+  }, [confirmingDeleteId]);
 
   const minutesRead = dailyGoal?.minutesRead ?? 0;
   const goalMinutes = dailyGoal?.targetMinutes ?? settings.dailyGoalMinutes ?? 25;
@@ -147,7 +155,7 @@ export function LibraryScreen({
         </div>
         <div>
           <h2>Import an EPUB or PDF</h2>
-          <p>Books stay on this device — only the chapter you generate from is sent to AI.</p>
+          <p>Books stay private on your device. Only the chapter you're studying is sent to OpenAI for quests.</p>
         </div>
         <input
           ref={inputRef}
@@ -238,14 +246,29 @@ export function LibraryScreen({
                       </span>
                     </span>
                   </button>
-                  <button
-                    className="icon-button quiet"
-                    type="button"
-                    aria-label={`Delete ${book.title}`}
-                    onClick={() => onDeleteBook(book.id)}
-                  >
-                    <Trash2 />
-                  </button>
+                  {confirmingDeleteId === book.id ? (
+                    <button
+                      className="delete-confirm"
+                      type="button"
+                      aria-label={`Confirm delete ${book.title}`}
+                      onClick={() => {
+                        setConfirmingDeleteId(null);
+                        onDeleteBook(book.id);
+                      }}
+                    >
+                      <Trash2 aria-hidden="true" />
+                      <span>Delete?</span>
+                    </button>
+                  ) : (
+                    <button
+                      className="icon-button quiet"
+                      type="button"
+                      aria-label={`Delete ${book.title}`}
+                      onClick={() => setConfirmingDeleteId(book.id)}
+                    >
+                      <Trash2 />
+                    </button>
+                  )}
                 </article>
               );
             })}

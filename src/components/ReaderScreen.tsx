@@ -189,6 +189,7 @@ export function ReaderScreen({
         } as React.CSSProperties
       }
     >
+      <a className="skip-link" href="#chapter-text">Skip to chapter text</a>
       <header className="reader-topbar">
         <button className="icon-button" type="button" aria-label="Back to library" onClick={onBack}>
           <ArrowLeft />
@@ -438,7 +439,7 @@ export function ReaderScreen({
         </section>
       ) : null}
 
-      <article className={`reader-page mode-${settings.readingMode}`} aria-label="Reader text">
+      <article id="chapter-text" className={`reader-page mode-${settings.readingMode}`} aria-label="Reader text">
         <div className="chapter-kicker">
           <span>
             {book.format === "pdf" ? `Page ${chapter.pageNumber ?? chapterIndex + 1}` : `Chapter ${chapterIndex + 1}`}
@@ -464,11 +465,11 @@ export function ReaderScreen({
               <div className="pdf-reader-tools-heading">
                 <FileText aria-hidden="true" />
                 <div>
-                  <strong>{hasReadablePdfText ? "Mobile reading view" : "Scanned page view"}</strong>
+                  <strong>{hasReadablePdfText ? "Mobile reading view" : "Scanned PDF"}</strong>
                   <span>
                     {hasReadablePdfText
                       ? "Use reflowed text for reading, or compare with the original page."
-                      : "This page has no selectable PDF text, so the app trims the margins to make it easier to read."}
+                      : "No extractable text on this page. Margins are trimmed for readability — run OCR in the quest sheet to enable AI features."}
                   </span>
                 </div>
               </div>

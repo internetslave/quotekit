@@ -97,6 +97,21 @@ export default function App() {
     };
   }, []);
 
+  // When the user jumps between screens, move focus to the first heading
+  // in the new screen so screen readers announce the context.
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      const h1 = document.querySelector<HTMLElement>(".app-shell h1");
+      if (h1) {
+        // h1 isn't focusable by default; tabindex=-1 lets us programmatically
+        // focus it without making it part of the keyboard tab order.
+        h1.setAttribute("tabindex", "-1");
+        h1.focus({ preventScroll: true });
+      }
+    }, 80);
+    return () => window.clearTimeout(t);
+  }, [screen]);
+
   // Drive the iOS status-bar meta from the active theme so the bar tint
   // matches the surface beneath it.
   useEffect(() => {
