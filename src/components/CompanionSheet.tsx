@@ -109,6 +109,7 @@ export function CompanionSheet(props: CompanionSheetProps) {
   const [selectedText, setSelectedText] = useState("");
   const [seenAchievementIds, setSeenAchievementIds] = useState<Set<string>>(new Set());
   const celebratedRef = useRef<string | null>(null);
+  const swipeStateRef = useRef<{ y: number; t: number } | null>(null);
 
   // Live track text selection so the Highlight button reflects the user's
   // current selection — previously it captured only once on render.
@@ -218,6 +219,35 @@ export function CompanionSheet(props: CompanionSheetProps) {
         type="button"
         aria-label={isClosed ? "Open quest sheet" : "Lower quest sheet"}
         onClick={() => setSheetState(isClosed ? "open" : "closed")}
+        onTouchStart={(event) => {
+          if (isDesktop) return;
+          swipeStateRef.current = { y: event.touches[0].clientY, t: Date.now() };
+        }}
+        onTouchMove={(event) => {
+          if (isDesktop || !swipeStateRef.current) return;
+          // Prevent the underlying page from scrolling while the user is
+          // gesturing on the handle.
+          event.preventDefault();
+        }}
+        onTouchEnd={(event) => {
+          if (isDesktop || !swipeStateRef.current) return;
+          const start = swipeStateRef.current;
+          const endY = event.changedTouches[0].clientY;
+          const dy = endY - start.y;
+          const dt = Math.max(1, Date.now() - start.t);
+          const velocity = dy / dt; // px/ms
+          swipeStateRef.current = null;
+          // Swipe down: collapse one step. Swipe up: expand one step.
+          if (dy > 40 || velocity > 0.4) {
+            setSheetState((current) =>
+              current === "expanded" ? "open" : current === "open" ? "closed" : "closed"
+            );
+          } else if (dy < -40 || velocity < -0.4) {
+            setSheetState((current) =>
+              current === "closed" ? "open" : current === "open" ? "expanded" : "expanded"
+            );
+          }
+        }}
       >
         <span className="grabber" aria-hidden="true" />
       </button>

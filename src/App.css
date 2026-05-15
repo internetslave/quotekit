@@ -2234,3 +2234,39 @@ mark {
 @media (prefers-reduced-motion: reduce) {
   .complete-button.completed { animation: none; }
 }
+
+/* ============================================================
+   Phase 4 additions — iOS-native feel
+   ============================================================ */
+
+/* Offline banner — fixed, just below the safe-area top, animated in */
+.offline-banner {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px));
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4) max(var(--space-2), 6px);
+  background: var(--coral);
+  color: #fff;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  box-shadow: var(--shadow-md);
+  animation: bannerSlideIn var(--dur-slow) var(--ease);
+}
+.offline-banner svg { width: 16px; height: 16px; }
+@keyframes bannerSlideIn {
+  from { transform: translateY(-100%); }
+  to   { transform: translateY(0); }
+}
+
+/* Companion sheet handle: bigger touch target + safe-area-aware bottom
+   pad so it always clears the iPhone home indicator when collapsed. */
+.companion-sheet.closed {
+  padding-bottom: max(var(--space-4), env(safe-area-inset-bottom, 0));
+}

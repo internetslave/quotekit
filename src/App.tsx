@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { BookOpen, Sparkles } from "lucide-react";
 import { CompanionSheet } from "./components/CompanionSheet";
 import { LibraryScreen } from "./components/LibraryScreen";
+import { OfflineBanner } from "./components/OfflineBanner";
 import { ReaderScreen } from "./components/ReaderScreen";
 import {
   defaultSettings,
@@ -79,6 +80,43 @@ export default function App() {
   const [aiStatus, setAiStatus] = useState<AsyncStatus>("idle");
   const [aiError, setAiError] = useState("");
   const [ocrStatus, setOcrStatus] = useState<AsyncStatus>("idle");
+  const [isOffline, setIsOffline] = useState<boolean>(
+    typeof navigator !== "undefined" && navigator.onLine === false
+  );
+
+  // Track network status so we can show an offline banner and gate the
+  // Generate button. iOS PWAs surface this reliably via 'online'/'offline'.
+  useEffect(() => {
+    const onOnline = () => setIsOffline(false);
+    const onOffline = () => setIsOffline(true);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, []);
+
+  // Drive the iOS status-bar meta from the active theme so the bar tint
+  // matches the surface beneath it.
+  useEffect(() => {
+    const themeColors: Record<typeof settings.theme, string> = {
+      paper: "#f4ebd6",
+      sepia: "#ead4ab",
+      dark: "#1a1612"
+    };
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", themeColors[settings.theme]);
+    // Match the apple-mobile-web-app-status-bar-style too: black-translucent
+    // on dark, default elsewhere.
+    const statusBar = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+    if (statusBar) {
+      statusBar.setAttribute(
+        "content",
+        settings.theme === "dark" ? "black-translucent" : "default"
+      );
+    }
+  }, [settings.theme]);
 
   const activeBook = useMemo(() => books.find((book) => book.id === activeBookId), [activeBookId, books]);
   const activeChapter = activeBook?.chapters[chapterIndex];
@@ -477,6 +515,7 @@ export default function App() {
   if (screen === "reader" && activeBook && activeChapter) {
     return (
       <div className={`app-shell theme-${settings.theme}`}>
+        <OfflineBanner visible={isOffline} />
         <ReaderScreen
           book={activeBook}
           chapter={activeChapter}
@@ -516,6 +555,7 @@ export default function App() {
 
   return (
     <div className={`app-shell theme-${settings.theme}`}>
+      <OfflineBanner visible={isOffline} />
       <LibraryScreen
         books={books}
         importing={importing}
