@@ -33,11 +33,43 @@ yourself or paste from Handoff), then use **Share → Add to Home Screen** to
 install it as a fullscreen PWA. Launching from the home screen feels like a
 native app.
 
+## Pull-the-latest and relaunch in one command
+
+`npm run go` is the maintenance shortcut:
+
+```bash
+npm run go
+```
+
+What it does, in order:
+
+1. Adds (once, then idempotent) a `quotekit` git remote pointing at
+   `internetslave/quotekit` and fetches its `readquest-import` branch — the
+   canonical source for ongoing changes.
+2. Stashes any uncommitted local work, fast-forwards (or first-time merges)
+   your current branch with the latest code, then restores your stash.
+3. Pushes the updated branch to `origin` (so opencode and your repo on
+   GitHub stay in sync).
+4. Runs `npm install` to pick up new dependencies.
+5. Stops any prior process bound to `PORT` so the rebuild can claim it.
+6. Hands off to `npm run phone` to rebuild and open a fresh Cloudflare
+   tunnel.
+
+Once it prints the new **Phone URL**, open it in Safari on your iPhone and
+re-do **Share → Add to Home Screen** to overwrite the previous icon — the
+Cloudflare quick-tunnel URL rotates on every restart.
+
+Overrides (optional):
+
+- `QUOTEKIT_REMOTE` — change the source repo (defaults to the canonical one).
+- `SOURCE_BRANCH` — change the source branch (default `readquest-import`).
+- `PORT` — read from `.env`, defaults to `4173`.
+
 Notes:
 
 - Your Mac must be on and the script running for the tunnel to be reachable.
-- The Cloudflare URL changes every time you restart `npm run phone`. The
-  access code (`APP_ACCESS_CODE` in `.env`) stays the same.
+- The Cloudflare URL changes every time you restart `npm run phone` or
+  `npm run go`. The access code (`APP_ACCESS_CODE` in `.env`) stays the same.
 - The access cookie is stored for 7 days, so once you've opened the Phone URL
   once, the home-screen icon keeps working without the `?access=` query until
   the cookie expires.
