@@ -11,27 +11,50 @@ npm run dev
 
 Open `http://localhost:4173`.
 
-## Use It From Your Phone (Anywhere)
+## Use It From Your Phone (over Tailscale — default)
 
-`npm run phone` builds the app, starts the production server, and opens a
-public Cloudflare quick tunnel so you can use it from your iPhone on cellular
-or any other network.
+`npm run phone` builds the app, starts the production server, and exposes
+it at a **stable HTTPS URL on your tailnet** via `tailscale serve`. The
+URL doesn't rotate between restarts, so the iPhone home-screen icon keeps
+working forever.
 
 ```bash
 npm run phone
 ```
 
-One-time prerequisite (already installed on this machine):
+Prerequisites:
+
+- Tailscale installed and signed in on this Mac (`brew install tailscale`
+  or the App Store app, plus `tailscale up`).
+- The Tailscale iPhone app installed and signed into the **same tailnet**.
+  The URL is private to your tailnet by default; the phone needs Tailscale
+  running to reach it.
+
+The script prints the Tailscale URL (with the access code already
+appended) and copies it to your macOS clipboard. On your iPhone, open the
+URL in Safari, then **Share → Add to Home Screen** — once added, future
+launches just need `npm run go` on your Mac; the icon URL stays valid.
+
+### Make it reachable from the public internet too
+
+If you want the URL to work from devices that aren't on your tailnet, set
+`TS_FUNNEL=1`. Funnel must be enabled at
+https://login.tailscale.com/admin/settings/general first.
 
 ```bash
-brew install cloudflared
+TS_FUNNEL=1 npm run phone
 ```
 
-The script prints a **Phone URL** with the access code already appended and
-copies it to your macOS clipboard. Open it on your iPhone (text it to
-yourself or paste from Handoff), then use **Share → Add to Home Screen** to
-install it as a fullscreen PWA. Launching from the home screen feels like a
-native app.
+### Cloudflare quick-tunnel (alternative)
+
+The original Cloudflare path is still available:
+
+```bash
+npm run phone:cloudflare
+```
+
+Note that Cloudflare quick-tunnel URLs rotate every launch, so you'd have
+to re-do **Add to Home Screen** every time.
 
 ## Pull-the-latest and relaunch in one command
 
@@ -52,27 +75,28 @@ What it does, in order:
    GitHub stay in sync).
 4. Runs `npm install` to pick up new dependencies.
 5. Stops any prior process bound to `PORT` so the rebuild can claim it.
-6. Hands off to `npm run phone` to rebuild and open a fresh Cloudflare
-   tunnel.
+6. Hands off to `npm run phone` (Tailscale by default), which rebuilds
+   and re-exposes the app at your tailnet's stable HTTPS URL.
 
-Once it prints the new **Phone URL**, open it in Safari on your iPhone and
-re-do **Share → Add to Home Screen** to overwrite the previous icon — the
-Cloudflare quick-tunnel URL rotates on every restart.
+Because the Tailscale URL is stable across restarts, the iPhone
+home-screen icon you added once **keeps working forever**. You only need
+to re-do **Add to Home Screen** if you switch tunnels or revoke the URL.
 
 Overrides (optional):
 
 - `QUOTEKIT_REMOTE` — change the source repo (defaults to the canonical one).
 - `SOURCE_BRANCH` — change the source branch (default `readquest-import`).
 - `PORT` — read from `.env`, defaults to `4173`.
+- `TS_FUNNEL=1` — also expose the URL publicly via Tailscale Funnel.
 
 Notes:
 
-- Your Mac must be on and the script running for the tunnel to be reachable.
-- The Cloudflare URL changes every time you restart `npm run phone` or
-  `npm run go`. The access code (`APP_ACCESS_CODE` in `.env`) stays the same.
-- The access cookie is stored for 7 days, so once you've opened the Phone URL
-  once, the home-screen icon keeps working without the `?access=` query until
-  the cookie expires.
+- Your Mac must be on and `tailscale` running for the URL to be reachable.
+- The iPhone needs the Tailscale app signed into the same tailnet (unless
+  you've enabled Funnel).
+- The access cookie is stored for 7 days, so once you've opened the URL
+  with `?access=...` once, the home-screen icon keeps working without the
+  query string until the cookie expires.
 
 ## OpenAI Setup
 

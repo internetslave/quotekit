@@ -107,5 +107,8 @@ fi
 # ---------- Launch ----------
 
 echo ""
-echo "Launching production server + Cloudflare tunnel..."
-exec bash scripts/tunnel.sh
+echo "Launching production server + Tailscale serve..."
+# Calls `npm run phone`, which by default runs scripts/tailscale-serve.sh.
+# To use the legacy Cloudflare quick-tunnel path instead, run:
+#   npm run phone:cloudflare
+exec npm run phone

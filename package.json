@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "NODE_ENV=production node server/index.js",
-    "phone": "bash scripts/tunnel.sh",
+    "phone": "bash scripts/tailscale-serve.sh",
+    "phone:cloudflare": "bash scripts/tunnel.sh",
     "go": "bash scripts/update-and-launch.sh"
   },
   "dependencies": {
