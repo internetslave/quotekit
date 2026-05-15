@@ -1,0 +1,19 @@
+{
+  "name": "ReadQuest",
+  "short_name": "ReadQuest",
+  "description": "A cozy mobile reader that turns EPUB and PDF chapters into quests with summaries, quizzes, vocab, notes, and AI companions.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4ebd6",
+  "theme_color": "#b85a33",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/pwa.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
