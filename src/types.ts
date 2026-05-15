@@ -1,6 +1,8 @@
 export type BookFormat = "epub" | "pdf";
 export type ReaderTheme = "paper" | "sepia" | "dark";
 export type ReadingMode = "scroll" | "page";
+export type ReaderFontFamily = "serif" | "sans" | "dyslexic";
+export type ReaderMargin = "tight" | "normal" | "loose";
 export type CompanionTab = "overview" | "quiz" | "vocab" | "notes" | "progress";
 
 export interface Chapter {
@@ -46,6 +48,10 @@ export interface ReaderSettings {
   theme: ReaderTheme;
   readingMode: ReadingMode;
   dailyGoalMinutes: number;
+  fontFamily?: ReaderFontFamily;
+  letterSpacing?: number; // em units, -0.02 .. 0.05
+  margin?: ReaderMargin;
+  highContrast?: boolean;
 }
 
 export interface Highlight {

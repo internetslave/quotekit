@@ -1,21 +1,44 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  AlignLeft,
   ArrowLeft,
   Bookmark,
+  Check,
   ChevronLeft,
   ChevronRight,
   Clock,
+  Contrast,
   FileText,
-  List,
-  Minus,
-  Plus,
+  ListOrdered,
+  Maximize2,
   Search,
+  ScrollText,
   Settings2,
-  Type
+  Sparkles,
+  Type,
+  X
 } from "lucide-react";
-import type { Book, Chapter, ReaderSettings, ReadingProgress } from "../types";
+import type { Book, Chapter, ReaderFontFamily, ReaderMargin, ReaderSettings, ReadingProgress } from "../types";
 import { estimateReadingMinutes, splitParagraphs } from "../utils/text";
 import { PdfPageCanvas } from "./PdfPageCanvas";
+
+const FONT_FAMILIES: { id: ReaderFontFamily; label: string; sample: string }[] = [
+  { id: "serif", label: "Serif", sample: "Aa" },
+  { id: "sans", label: "Sans", sample: "Aa" },
+  { id: "dyslexic", label: "Dyslexic", sample: "Aa" }
+];
+
+const MARGINS: { id: ReaderMargin; label: string }[] = [
+  { id: "tight", label: "Tight" },
+  { id: "normal", label: "Normal" },
+  { id: "loose", label: "Loose" }
+];
+
+const THEME_OPTIONS = [
+  { id: "paper" as const, label: "Paper" },
+  { id: "sepia" as const, label: "Sepia" },
+  { id: "dark" as const, label: "Dark" }
+];
 
 interface ReaderScreenProps {
   book: Book;
@@ -41,9 +64,12 @@ export function ReaderScreen({
   onSettingsChange
 }: ReaderScreenProps) {
   const screenRef = useRef<HTMLElement | null>(null);
+  const readerCopyRef = useRef<HTMLDivElement | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showChapters, setShowChapters] = useState(false);
   const [searchSelection, setSearchSelection] = useState<{ chapterId: string; value: string }>();
   const [textPageSelection, setTextPageSelection] = useState<{ chapterId: string; pageIndex: number }>();
+  const [activeMatchIndex, setActiveMatchIndex] = useState(0);
   const hasReadablePdfText =
     book.format === "pdf" && !isPdfPlaceholderText(chapter.text, chapter.pageNumber);
   const defaultPdfViewMode = hasReadablePdfText ? "text" : "crop";
@@ -82,8 +108,32 @@ export function ReaderScreen({
     Math.round(((chapterIndex + 1) / book.chapters.length) * 100);
 
   useEffect(() => {
-    requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "auto" }));
+    requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "smooth" }));
+    setActiveMatchIndex(0);
   }, [chapter.id]);
+
+  // Cycle the active search match into view whenever it changes.
+  useEffect(() => {
+    if (!searchTerm.trim() || searchCount === 0) return;
+    const root = readerCopyRef.current;
+    if (!root) return;
+    const marks = root.querySelectorAll<HTMLElement>("mark[data-match]");
+    const target = marks[activeMatchIndex];
+    if (!target) return;
+    marks.forEach((m) => m.classList.toggle("active", m === target));
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [activeMatchIndex, searchTerm, searchCount, chapter.id]);
+
+  const goToMatch = useCallback(
+    (direction: 1 | -1) => {
+      if (searchCount === 0) return;
+      setActiveMatchIndex((current) => {
+        const next = (current + direction + searchCount) % searchCount;
+        return next;
+      });
+    },
+    [searchCount]
+  );
 
   function moveToReaderTop() {
     requestAnimationFrame(() => {
@@ -112,14 +162,30 @@ export function ReaderScreen({
     onChapterChange(chapterIndex + 1);
   }
 
+  const fontFamilyVar =
+    settings.fontFamily === "sans"
+      ? "var(--font-ui)"
+      : settings.fontFamily === "dyslexic"
+        ? "'OpenDyslexic', 'Comic Sans MS', sans-serif"
+        : "var(--font-reader)";
+  const marginInline =
+    settings.margin === "tight"
+      ? "clamp(8px, 3vw, 18px)"
+      : settings.margin === "loose"
+        ? "clamp(28px, 7vw, 56px)"
+        : "clamp(18px, 5vw, 36px)";
+
   return (
     <main
       ref={screenRef}
-      className={`reader-screen reader-${settings.theme}`}
+      className={`reader-screen reader-${settings.theme}${settings.highContrast ? " reader-high-contrast" : ""}`}
       style={
         {
           "--reader-font-size": `${settings.fontSize}px`,
-          "--reader-line-height": settings.lineHeight
+          "--reader-line-height": settings.lineHeight,
+          "--reader-font-family": fontFamilyVar,
+          "--reader-letter-spacing": `${settings.letterSpacing ?? 0}em`,
+          "--reader-margin-inline": marginInline
         } as React.CSSProperties
       }
     >
@@ -134,7 +200,16 @@ export function ReaderScreen({
         <button
           className="icon-button"
           type="button"
+          aria-label="Chapter list"
+          onClick={() => setShowChapters(true)}
+        >
+          <ListOrdered />
+        </button>
+        <button
+          className="icon-button"
+          type="button"
           aria-label="Reader settings"
+          aria-expanded={showSettings}
           onClick={() => setShowSettings((current) => !current)}
         >
           <Settings2 />
@@ -158,66 +233,127 @@ export function ReaderScreen({
 
       {showSettings ? (
         <section className="reader-settings-panel" aria-label="Reader settings">
-          <div className="setting-row">
+          <header className="settings-header">
+            <strong>Reader settings</strong>
+            <button
+              className="icon-button mini"
+              type="button"
+              aria-label="Close reader settings"
+              onClick={() => setShowSettings(false)}
+            >
+              <X />
+            </button>
+          </header>
+
+          <label className="setting-slider">
             <Type aria-hidden="true" />
             <span className="label">Text size</span>
-            <button
-              className="icon-button mini"
-              type="button"
-              aria-label="Decrease font size"
-              onClick={() => onSettingsChange({ ...settings, fontSize: Math.max(15, settings.fontSize - 1) })}
-            >
-              <Minus />
-            </button>
-            <strong>{settings.fontSize}px</strong>
-            <button
-              className="icon-button mini"
-              type="button"
-              aria-label="Increase font size"
-              onClick={() => onSettingsChange({ ...settings, fontSize: Math.min(24, settings.fontSize + 1) })}
-            >
-              <Plus />
-            </button>
-          </div>
-          <label className="setting-slider">
-            <List aria-hidden="true" />
             <input
               type="range"
-              min="1.35"
-              max="1.95"
+              min="14"
+              max="26"
+              step="1"
+              value={settings.fontSize}
+              onChange={(event) =>
+                onSettingsChange({ ...settings, fontSize: Number(event.target.value) })
+              }
+              aria-label="Text size"
+            />
+            <strong>{settings.fontSize}px</strong>
+          </label>
+
+          <label className="setting-slider">
+            <ScrollText aria-hidden="true" />
+            <span className="label">Line height</span>
+            <input
+              type="range"
+              min="1.25"
+              max="2"
               step="0.05"
               value={settings.lineHeight}
-              onChange={(event) => onSettingsChange({ ...settings, lineHeight: Number(event.target.value) })}
+              onChange={(event) =>
+                onSettingsChange({ ...settings, lineHeight: Number(event.target.value) })
+              }
+              aria-label="Line height"
             />
             <strong>{Number(settings.lineHeight).toFixed(2)}</strong>
           </label>
-          <div className="segmented-control" aria-label="Theme">
-            {(["paper", "sepia", "dark"] as const).map((theme) => (
-              <button
-                className={settings.theme === theme ? "active" : ""}
-                key={theme}
-                type="button"
-                onClick={() => onSettingsChange({ ...settings, theme })}
-              >
-                {theme}
-              </button>
-            ))}
+
+          <label className="setting-slider">
+            <AlignLeft aria-hidden="true" />
+            <span className="label">Letter spacing</span>
+            <input
+              type="range"
+              min="-0.02"
+              max="0.06"
+              step="0.005"
+              value={settings.letterSpacing ?? 0}
+              onChange={(event) =>
+                onSettingsChange({ ...settings, letterSpacing: Number(event.target.value) })
+              }
+              aria-label="Letter spacing"
+            />
+            <strong>{((settings.letterSpacing ?? 0) * 1000).toFixed(0)}</strong>
+          </label>
+
+          <div className="setting-row">
+            <span className="label">Font</span>
+            <div className="segmented-control" role="group" aria-label="Font family">
+              {FONT_FAMILIES.map((font) => (
+                <button
+                  className={settings.fontFamily === font.id ? "active" : ""}
+                  key={font.id}
+                  type="button"
+                  onClick={() => onSettingsChange({ ...settings, fontFamily: font.id })}
+                >
+                  {font.label}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="segmented-control" aria-label="Reading mode">
-            {(["page", "scroll"] as const).map((readingMode) => (
-              <button
-                className={settings.readingMode === readingMode ? "active" : ""}
-                key={readingMode}
-                type="button"
-                onClick={() => {
-                  setTextPageSelection({ chapterId: chapter.id, pageIndex: 0 });
-                  onSettingsChange({ ...settings, readingMode });
-                }}
-              >
-                {readingMode === "page" ? "Crop" : "Scroll"}
-              </button>
-            ))}
+
+          <div className="setting-row">
+            <span className="label">Margins</span>
+            <div className="segmented-control" role="group" aria-label="Page margins">
+              {MARGINS.map((m) => (
+                <button
+                  className={(settings.margin ?? "normal") === m.id ? "active" : ""}
+                  key={m.id}
+                  type="button"
+                  onClick={() => onSettingsChange({ ...settings, margin: m.id })}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
           </div>
+
+          <div className="setting-row">
+            <span className="label">Theme</span>
+            <div className="segmented-control" role="group" aria-label="Theme">
+              {THEME_OPTIONS.map((t) => (
+                <button
+                  className={settings.theme === t.id ? "active" : ""}
+                  key={t.id}
+                  type="button"
+                  onClick={() => onSettingsChange({ ...settings, theme: t.id })}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button
+            className={`hc-toggle${settings.highContrast ? " active" : ""}`}
+            type="button"
+            aria-pressed={Boolean(settings.highContrast)}
+            onClick={() => onSettingsChange({ ...settings, highContrast: !settings.highContrast })}
+          >
+            <Contrast aria-hidden="true" />
+            <span>High contrast</span>
+            {settings.highContrast ? <Check aria-hidden="true" /> : null}
+          </button>
         </section>
       ) : null}
 
@@ -227,15 +363,42 @@ export function ReaderScreen({
           value={searchTerm}
           placeholder="Search this chapter"
           disabled={!visibleReaderText}
-          onChange={(event) => setSearchSelection({ chapterId: chapter.id, value: event.target.value })}
+          onChange={(event) => {
+            setSearchSelection({ chapterId: chapter.id, value: event.target.value });
+            setActiveMatchIndex(0);
+          }}
         />
-        <span className="count">
-          {searchTerm
-            ? `${searchCount} found`
-            : visibleReaderText
-              ? `${chapter.wordCount.toLocaleString()} words`
-              : "PDF image"}
-        </span>
+        {searchTerm && searchCount > 0 ? (
+          <div className="search-nav" role="group" aria-label="Cycle search matches">
+            <button
+              type="button"
+              className="icon-button mini"
+              aria-label="Previous match"
+              onClick={() => goToMatch(-1)}
+            >
+              <ChevronLeft />
+            </button>
+            <span className="search-count">
+              {activeMatchIndex + 1}/{searchCount}
+            </span>
+            <button
+              type="button"
+              className="icon-button mini"
+              aria-label="Next match"
+              onClick={() => goToMatch(1)}
+            >
+              <ChevronRight />
+            </button>
+          </div>
+        ) : (
+          <span className="count">
+            {searchTerm
+              ? `0 found`
+              : visibleReaderText
+                ? `${chapter.wordCount.toLocaleString()} words`
+                : "Scanned PDF"}
+          </span>
+        )}
       </section>
 
       {book.format !== "pdf" ? (
@@ -248,7 +411,7 @@ export function ReaderScreen({
                 : "Full chapter on one scroll"}
             </span>
           </div>
-          <div className="segmented-control reader-mode-control" aria-label="Reader view">
+          <div className="segmented-control reader-mode-control" role="group" aria-label="Reader view">
             <button
               className={settings.readingMode === "page" ? "active" : ""}
               type="button"
@@ -257,7 +420,8 @@ export function ReaderScreen({
                 onSettingsChange({ ...settings, readingMode: "page" });
               }}
             >
-              Crop
+              <FileText aria-hidden="true" />
+              <span>Crop</span>
             </button>
             <button
               className={settings.readingMode === "scroll" ? "active" : ""}
@@ -267,7 +431,8 @@ export function ReaderScreen({
                 onSettingsChange({ ...settings, readingMode: "scroll" });
               }}
             >
-              Scroll
+              <Maximize2 aria-hidden="true" />
+              <span>Scroll</span>
             </button>
           </div>
         </section>
@@ -341,7 +506,7 @@ export function ReaderScreen({
         ) : null}
 
         {pdfViewMode === "text" || book.format !== "pdf" ? (
-          <div className="reader-copy">
+          <div className="reader-copy" ref={readerCopyRef}>
             {visibleParagraphs.map((paragraph, index) => (
               <p key={`${chapter.id}_${textPageIndex}_${index}`}>{renderWithSearch(paragraph, searchTerm)}</p>
             ))}
@@ -399,7 +564,98 @@ export function ReaderScreen({
           <ChevronRight aria-hidden="true" />
         </button>
       </nav>
+
+      {showChapters ? (
+        <ChapterDrawer
+          book={book}
+          chapterIndex={chapterIndex}
+          progress={progress}
+          onSelect={(index) => {
+            setShowChapters(false);
+            onChapterChange(index);
+          }}
+          onClose={() => setShowChapters(false)}
+        />
+      ) : null}
     </main>
+  );
+}
+
+interface ChapterDrawerProps {
+  book: Book;
+  chapterIndex: number;
+  progress?: ReadingProgress;
+  onSelect: (index: number) => void;
+  onClose: () => void;
+}
+
+function ChapterDrawer({ book, chapterIndex, progress, onSelect, onClose }: ChapterDrawerProps) {
+  // Lock body scroll while drawer is open
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, []);
+
+  // Esc closes
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const completed = new Set(progress?.completedChapterIds ?? []);
+
+  return (
+    <div className="chapter-drawer-backdrop" onClick={onClose}>
+      <aside
+        className="chapter-drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Chapter list"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="chapter-drawer-header">
+          <div>
+            <strong>{book.title}</strong>
+            <span>{book.chapters.length} chapter{book.chapters.length === 1 ? "" : "s"}</span>
+          </div>
+          <button
+            className="icon-button mini"
+            type="button"
+            aria-label="Close chapter list"
+            onClick={onClose}
+          >
+            <X />
+          </button>
+        </header>
+        <ol className="chapter-drawer-list">
+          {book.chapters.map((c, i) => {
+            const isCurrent = i === chapterIndex;
+            const isDone = completed.has(c.id);
+            return (
+              <li key={c.id}>
+                <button
+                  type="button"
+                  className={`chapter-row${isCurrent ? " current" : ""}${isDone ? " done" : ""}`}
+                  onClick={() => onSelect(i)}
+                >
+                  <span className="chapter-row-num">
+                    {isDone ? <Check aria-hidden="true" /> : i + 1}
+                  </span>
+                  <span className="chapter-row-title">{c.title}</span>
+                  {isCurrent ? <Sparkles aria-hidden="true" /> : null}
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+      </aside>
+    </div>
   );
 }
 
@@ -412,7 +668,7 @@ function renderWithSearch(text: string, searchTerm: string) {
   const regex = new RegExp(`(${escapeRegex(trimmed)})`, "gi");
   return text.split(regex).map((part, index) =>
     part.toLowerCase() === trimmed.toLowerCase() ? (
-      <mark key={`${part}_${index}`}>{part}</mark>
+      <mark key={`${part}_${index}`} data-match>{part}</mark>
     ) : (
       <span key={`${part}_${index}`}>{part}</span>
     )

@@ -7,10 +7,16 @@ interface PdfPageCanvasProps {
   viewMode: "crop" | "full";
 }
 
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 4;
+
 export function PdfPageCanvas({ book, pageNumber, viewMode }: PdfPageCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const frameRef = useRef<HTMLDivElement | null>(null);
   const [status, setStatus] = useState("Rendering PDF page...");
+  const [zoom, setZoom] = useState(1);
+  const pinchStateRef = useRef<{ startDist: number; startZoom: number } | null>(null);
+  const lastTapRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,12 +86,76 @@ export function PdfPageCanvas({ book, pageNumber, viewMode }: PdfPageCanvasProps
     };
   }, [book.fileData, pageNumber, viewMode]);
 
+  // Reset zoom whenever the rendered page or view mode changes — a new page
+  // wants its own fit, not a leftover zoom from the previous one.
+  useEffect(() => {
+    setZoom(1);
+  }, [pageNumber, viewMode]);
+
+  function onTouchStart(event: React.TouchEvent) {
+    if (event.touches.length === 2) {
+      const dist = touchDistance(event.touches[0], event.touches[1]);
+      pinchStateRef.current = { startDist: dist, startZoom: zoom };
+    } else if (event.touches.length === 1) {
+      const now = Date.now();
+      if (now - lastTapRef.current < 280) {
+        // Double-tap toggle: zoom in to 1.8 or back to 1
+        setZoom((current) => (current > 1.1 ? 1 : 1.8));
+      }
+      lastTapRef.current = now;
+    }
+  }
+
+  function onTouchMove(event: React.TouchEvent) {
+    const state = pinchStateRef.current;
+    if (state && event.touches.length === 2) {
+      event.preventDefault();
+      const dist = touchDistance(event.touches[0], event.touches[1]);
+      const next = clamp(state.startZoom * (dist / state.startDist), MIN_ZOOM, MAX_ZOOM);
+      setZoom(next);
+    }
+  }
+
+  function onTouchEnd(event: React.TouchEvent) {
+    if (event.touches.length < 2) {
+      pinchStateRef.current = null;
+    }
+  }
+
   return (
     <div className={`pdf-frame pdf-frame-${viewMode}`} ref={frameRef}>
       {status ? <p className="pdf-status">{status}</p> : null}
-      <canvas ref={canvasRef} aria-label={`PDF page ${pageNumber}`} />
+      <div
+        className="pdf-zoom-wrapper"
+        style={{ transform: `scale(${zoom})`, transformOrigin: "top center" }}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
+        <canvas ref={canvasRef} aria-label={`PDF page ${pageNumber}`} />
+      </div>
+      {zoom !== 1 ? (
+        <button
+          type="button"
+          className="pdf-zoom-reset"
+          onClick={() => setZoom(1)}
+          aria-label="Reset PDF zoom"
+        >
+          {(zoom * 100).toFixed(0)}% · reset
+        </button>
+      ) : null}
     </div>
   );
+}
+
+function touchDistance(a: React.Touch, b: React.Touch): number {
+  const dx = a.clientX - b.clientX;
+  const dy = a.clientY - b.clientY;
+  return Math.hypot(dx, dy);
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }
 
 function cropCanvasToReadableContent(canvas: HTMLCanvasElement, availableWidth: number) {

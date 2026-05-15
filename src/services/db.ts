@@ -20,7 +20,11 @@ export const defaultSettings: ReaderSettings = {
   lineHeight: 1.68,
   theme: "paper",
   readingMode: "page",
-  dailyGoalMinutes: 20
+  dailyGoalMinutes: 20,
+  fontFamily: "serif",
+  letterSpacing: 0,
+  margin: "normal",
+  highContrast: false
 };
 
 interface ReadingMadeFunDb extends DBSchema {
