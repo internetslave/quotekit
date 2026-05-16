@@ -48,6 +48,8 @@ import type {
   ReadingProgress
 } from "./types";
 import { createId } from "./utils/id";
+import { chapterTextHash } from "./utils/hash";
+import { PROMPT_VERSION } from "./lib/promptVersion";
 import { estimateReadingMinutes, todayKey, yesterdayKey } from "./utils/text";
 
 type Screen = "library" | "reader";
@@ -225,14 +227,28 @@ export default function App() {
         setQuizAnswers({});
         return;
       }
-      const [kit, chapterNotes, chapterHighlights, answers] = await Promise.all([
+      const [storedKit, chapterNotes, chapterHighlights, answers] = await Promise.all([
         getChapterKit(activeChapter.id),
         getNotesForChapter(activeChapter.id),
         getHighlightsForChapter(activeChapter.id),
         getQuizAnswersForChapter(activeChapter.id)
       ]);
       if (!mounted) return;
-      setChapterKit(kit);
+      // Only show a cached kit if its content hash and prompt version still
+      // match this chapter. Otherwise the chapter has been edited or the
+      // prompt has been bumped, and the cached kit is stale; treat as empty
+      // so the user can regenerate. Sample kits and pre-cache-era kits are
+      // honoured as-is.
+      let usableKit: ChapterKit | undefined = storedKit;
+      if (storedKit?.source === "ai" && storedKit.contentHash) {
+        const currentHash = await chapterTextHash(activeChapter.text);
+        const versionMatch =
+          !storedKit.promptVersion || storedKit.promptVersion === PROMPT_VERSION;
+        if (storedKit.contentHash !== currentHash || !versionMatch) {
+          usableKit = undefined;
+        }
+      }
+      setChapterKit(usableKit);
       setNotes(chapterNotes.sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
       setHighlights(chapterHighlights.sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
       setQuizAnswers(Object.fromEntries(answers.map((answer) => [answer.questionId, answer])));
@@ -349,8 +365,12 @@ export default function App() {
 
   async function handleGenerateKit() {
     if (!activeBook || !activeChapter) return;
+    // If a real (non-sample) kit is already showing, the user is intentionally
+    // regenerating. Confirm once, then pass force=true to bypass both the
+    // server cache and the client cache for this call.
+    const isRegenerate = chapterKit?.source === "ai";
     if (
-      chapterKit?.source === "ai" &&
+      isRegenerate &&
       !window.confirm("Regenerate this chapter kit? This will make a new OpenAI API call.")
     ) {
       return;
@@ -358,7 +378,7 @@ export default function App() {
     setAiStatus("loading");
     setAiError("");
     try {
-      const kit = await generateChapterKit(activeBook, activeChapter);
+      const kit = await generateChapterKit(activeBook, activeChapter, { force: isRegenerate });
       await saveChapterKit(kit);
       setChapterKit(kit);
       setAiStatus("idle");

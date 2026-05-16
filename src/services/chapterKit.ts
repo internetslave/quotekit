@@ -1,5 +1,7 @@
 import type { Book, Chapter, ChapterKit, Flashcard, QuizQuestion } from "../types";
+import { PROMPT_VERSION } from "../lib/promptVersion";
 import { createId } from "../utils/id";
+import { chapterTextHash } from "../utils/hash";
 import { apiFetch } from "./apiAccess";
 
 interface ApiChapterKit {
@@ -10,6 +12,7 @@ interface ApiChapterKit {
   concepts: string[];
   reflectionPrompt: string;
   recap: ChapterKit["recap"];
+  cacheHit?: boolean;
 }
 
 interface AiStatus {
@@ -18,9 +21,20 @@ interface AiStatus {
   inputCharLimit?: number;
   maxOutputTokens?: number;
   reasoningEffort?: string;
+  promptVersion?: string;
 }
 
-export async function generateChapterKit(book: Book, chapter: Chapter): Promise<ChapterKit> {
+export interface GenerateOptions {
+  // Set true when the user clicked Regenerate. Bypasses both the client
+  // cache (handled by the caller) and the server cache.
+  force?: boolean;
+}
+
+export async function generateChapterKit(
+  book: Book,
+  chapter: Chapter,
+  options: GenerateOptions = {}
+): Promise<ChapterKit> {
   if (!hasUsableChapterText(chapter.text)) {
     throw new Error(
       "This PDF page looks image-based, so there is no readable text for AI to summarize yet. Use a text/EPUB version of the book, or add OCR support before generating a chapter kit."
@@ -49,7 +63,8 @@ export async function generateChapterKit(book: Book, chapter: Chapter): Promise<
     body: JSON.stringify({
       bookTitle: book.title,
       chapterTitle: chapter.title,
-      chapterText: chapter.text
+      chapterText: chapter.text,
+      force: Boolean(options.force)
     })
   });
 
@@ -59,7 +74,8 @@ export async function generateChapterKit(book: Book, chapter: Chapter): Promise<
   }
 
   const payload = (await response.json()) as ApiChapterKit;
-  return normalizeChapterKit(book.id, chapter.id, payload, "ai");
+  const contentHash = await chapterTextHash(chapter.text);
+  return normalizeChapterKit(book.id, chapter.id, payload, "ai", contentHash);
 }
 
 async function safeApiFetch(path: string, init?: RequestInit): Promise<Response> {
@@ -157,7 +173,8 @@ function normalizeChapterKit(
   bookId: string,
   chapterId: string,
   payload: ApiChapterKit,
-  source: "ai" | "sample"
+  source: "ai" | "sample",
+  contentHash?: string
 ): ChapterKit {
   return {
     id: chapterId,
@@ -165,6 +182,8 @@ function normalizeChapterKit(
     chapterId,
     generatedAt: new Date().toISOString(),
     source,
+    contentHash,
+    promptVersion: PROMPT_VERSION,
     overview: payload.overview,
     quiz: payload.quiz.map((question) => ({
       ...question,

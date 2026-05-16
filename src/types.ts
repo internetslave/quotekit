@@ -102,6 +102,11 @@ export interface ChapterKit {
   chapterId: string;
   generatedAt: string;
   source: "ai" | "sample";
+  // Cache validation: re-use a stored kit only when both contentHash and
+  // promptVersion match the current chapter text and current prompt code.
+  // Optional for backward-compat with kits stored before this field existed.
+  contentHash?: string;
+  promptVersion?: string;
   overview: {
     title: string;
     summary: string;

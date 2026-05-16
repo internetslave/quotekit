@@ -7,6 +7,14 @@ import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { networkInterfaces } from "node:os";
+import {
+  chapterCacheKey,
+  getCachedKit,
+  normaliseForHash,
+  setCachedKit,
+  stats as cacheStats
+} from "./cache.js";
+import { PROMPT_VERSION } from "./promptVersion.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
@@ -40,8 +48,17 @@ app.get("/api/ai-status", (_req, res) => {
     model: process.env.OPENAI_MODEL || "gpt-5.2",
     inputCharLimit: aiInputCharLimit,
     maxOutputTokens: aiMaxOutputTokens,
-    reasoningEffort: aiReasoningEffort
+    reasoningEffort: aiReasoningEffort,
+    promptVersion: PROMPT_VERSION
   });
+});
+
+app.get("/api/cache-stats", async (_req, res) => {
+  try {
+    res.json(await cacheStats());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get("/manifest.webmanifest", (_req, res) => {
@@ -145,7 +162,7 @@ const chapterKitSchema = {
 };
 
 app.post("/api/chapter-kit", chapterKitLimiter, async (req, res) => {
-  const { bookTitle, chapterTitle, chapterText } = req.body ?? {};
+  const { bookTitle, chapterTitle, chapterText, force } = req.body ?? {};
 
   if (!bookTitle || !chapterTitle || !chapterText) {
     res.status(400).json({ error: "bookTitle, chapterTitle, and chapterText are required." });
@@ -167,9 +184,28 @@ app.post("/api/chapter-kit", chapterKitLimiter, async (req, res) => {
     return;
   }
 
+  const sourceText = String(chapterText);
+  const normalised = normaliseForHash(sourceText);
+  const cacheKey = chapterCacheKey(normalised, PROMPT_VERSION);
+
+  // Cache lookup. Honour an explicit force flag from the client (the
+  // Regenerate button) so users have an escape hatch when the cached output
+  // is bad.
+  if (!force) {
+    try {
+      const cached = await getCachedKit(cacheKey);
+      if (cached) {
+        res.set("X-ReadQuest-Cache", "hit");
+        res.json({ ...cached, cacheHit: true });
+        return;
+      }
+    } catch (err) {
+      console.warn("[chapter-kit] cache read failed:", err.message);
+    }
+  }
+
   try {
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const sourceText = String(chapterText);
     const excerpt = createBudgetedExcerpt(sourceText, aiInputCharLimit);
     const excerptNote =
       excerpt.length < sourceText.length
@@ -180,7 +216,7 @@ app.post("/api/chapter-kit", chapterKitLimiter, async (req, res) => {
       max_output_tokens: aiMaxOutputTokens,
       reasoning: { effort: aiReasoningEffort },
       store: false,
-      prompt_cache_key: "reading-made-fun-chapter-kit-v1",
+      prompt_cache_key: `reading-made-fun-chapter-kit-${PROMPT_VERSION}`,
       input: [
         {
           role: "system",
@@ -202,7 +238,14 @@ app.post("/api/chapter-kit", chapterKitLimiter, async (req, res) => {
       }
     });
 
-    res.json(JSON.parse(response.output_text));
+    const payload = JSON.parse(response.output_text);
+    // Persist to server-side cache so the next caller (same chapter text)
+    // returns instantly without spending tokens.
+    setCachedKit(cacheKey, payload).catch((err) =>
+      console.warn("[chapter-kit] cache write failed:", err.message)
+    );
+    res.set("X-ReadQuest-Cache", "miss");
+    res.json(payload);
   } catch (error) {
     // Log full detail server-side; never echo the upstream message to clients
     // (it can leak model names, rate-limit internals, or other API specifics).
