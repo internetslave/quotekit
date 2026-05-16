@@ -133,9 +133,30 @@ async function ingestEpub(file: File): Promise<ImportResult> {
 
     const chapterDoc = new DOMParser().parseFromString(chapterText, "text/html");
     chapterDoc.querySelectorAll("script, style, nav, aside").forEach((node) => node.remove());
-    // Prefer real in-body headings (h1..h3) over <title>, which on Project
-    // Gutenberg EPUBs is the book title and would make every chapter render
-    // identical. Skip headings that just echo the book title.
+
+    // Some EPUBs (scripture compilations like the Book of Mormon, anthologies,
+    // poetry collections) bundle many real chapters inside a single spine
+    // item, marked by repeated h1/h2 headings. Try to split first; only fall
+    // back to "whole spine item is one chapter" if there isn't enough heading
+    // structure to make splitting safe.
+    const innerSections = splitDocIntoSections(chapterDoc, title);
+    if (innerSections.length > 0) {
+      for (const section of innerSections) {
+        chapters.push({
+          id: `${id}_chapter_${chapters.length + 1}`,
+          bookId: id,
+          index: chapters.length,
+          title: section.title || `Chapter ${chapters.length + 1}`,
+          text: section.text,
+          wordCount: countWords(section.text)
+        });
+      }
+      continue;
+    }
+
+    // Single-section spine item (a normal novel chapter, intro page, etc.):
+    // pick the best in-body heading or fall back to the document <title>,
+    // skipping anything that just echoes the book title.
     const headingCandidates = Array.from(
       chapterDoc.querySelectorAll<HTMLElement>("h1, h2, h3")
     )
@@ -258,4 +279,90 @@ function extractReadableHtmlText(doc: Document, heading: string): string {
   }
 
   return doc.body.textContent?.replace(/\s+/g, " ").trim() ?? "";
+}
+
+interface Section {
+  title: string;
+  text: string;
+}
+
+// Split a parsed EPUB spine document into multiple chapter sections if it
+// contains 2+ in-body headings that look like real chapter boundaries.
+// Returns [] when the document is a single-section file and the caller
+// should fall back to its existing single-chapter logic.
+function splitDocIntoSections(doc: Document, bookTitle: string): Section[] {
+  if (!doc.body) return [];
+
+  // Consider h1/h2/h3 in document order. We deliberately exclude h4+ so we
+  // don't shatter on inline scene-break-ish headers inside a chapter.
+  const headings = Array.from(doc.body.querySelectorAll<HTMLElement>("h1, h2, h3"));
+  if (headings.length < 2) return [];
+
+  // Only split when the dominant heading level is the same across all
+  // headings; otherwise the file's heading hierarchy is mixed (e.g. a single
+  // h1 with h2 subsection breaks underneath) and we'd produce a confused
+  // chapter list. Choose the level with the most occurrences and keep only
+  // those headings as section boundaries.
+  const levelCounts = new Map<string, number>();
+  for (const h of headings) {
+    levelCounts.set(h.tagName, (levelCounts.get(h.tagName) ?? 0) + 1);
+  }
+  let dominant = headings[0].tagName;
+  for (const [level, count] of levelCounts) {
+    if (count > (levelCounts.get(dominant) ?? 0)) dominant = level;
+  }
+  const splitPoints = headings.filter((h) => h.tagName === dominant);
+  if (splitPoints.length < 2) return [];
+
+  const bookTitleLower = bookTitle.toLowerCase();
+  const sections: Section[] = [];
+
+  for (let i = 0; i < splitPoints.length; i++) {
+    const startHeading = splitPoints[i];
+    const endHeading: HTMLElement | undefined = splitPoints[i + 1];
+
+    let title = startHeading.textContent?.replace(/\s+/g, " ").trim() ?? "";
+    // If the heading is just the book title, leave it blank; the caller
+    // will substitute a "Chapter N" label so the user sees real progress.
+    if (title.toLowerCase() === bookTitleLower) title = "";
+    if (title.length > 140) title = title.slice(0, 137) + "...";
+
+    let text = "";
+    try {
+      const range = doc.createRange();
+      range.setStartAfter(startHeading);
+      if (endHeading) {
+        range.setEndBefore(endHeading);
+      } else {
+        range.setEndAfter(doc.body);
+      }
+      text = range.toString().replace(/\s+/g, " ").trim();
+    } catch {
+      // createRange/Range can throw in older jsdom-style environments. Fall
+      // back to walking textContent of following siblings; good enough for
+      // EPUBs whose chapters sit as direct body children.
+      text = walkSiblingText(startHeading, endHeading);
+    }
+
+    if (text.length >= 40) {
+      sections.push({ title, text });
+    }
+  }
+
+  // Only treat the file as multi-chapter if splitting actually yields a
+  // useful structure. One stray heading at the top of an otherwise-normal
+  // chapter shouldn't trigger this path.
+  if (sections.length < 2) return [];
+  return sections;
+}
+
+function walkSiblingText(start: Element, end: Element | undefined): string {
+  const parts: string[] = [];
+  let node: Node | null = start.nextSibling;
+  while (node && node !== end) {
+    const text = node.textContent?.replace(/\s+/g, " ").trim();
+    if (text) parts.push(text);
+    node = node.nextSibling;
+  }
+  return parts.join(" ").replace(/\s+/g, " ").trim();
 }
