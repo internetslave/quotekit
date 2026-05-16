@@ -133,8 +133,23 @@ async function ingestEpub(file: File): Promise<ImportResult> {
 
     const chapterDoc = new DOMParser().parseFromString(chapterText, "text/html");
     chapterDoc.querySelectorAll("script, style, nav, aside").forEach((node) => node.remove());
+    // Prefer real in-body headings (h1..h3) over <title>, which on Project
+    // Gutenberg EPUBs is the book title and would make every chapter render
+    // identical. Skip headings that just echo the book title.
+    const headingCandidates = Array.from(
+      chapterDoc.querySelectorAll<HTMLElement>("h1, h2, h3")
+    )
+      .map((el) => el.textContent?.replace(/\s+/g, " ").trim() ?? "")
+      .filter((text) => text.length > 0 && text.length <= 120)
+      .filter((text) => text.toLowerCase() !== title.toLowerCase());
+    const titleFallback = chapterDoc
+      .querySelector("title")
+      ?.textContent?.replace(/\s+/g, " ").trim();
     const heading =
-      chapterDoc.querySelector("h1, h2, h3, title")?.textContent?.replace(/\s+/g, " ").trim() ||
+      headingCandidates[0] ||
+      (titleFallback && titleFallback.toLowerCase() !== title.toLowerCase()
+        ? titleFallback
+        : "") ||
       `Chapter ${chapters.length + 1}`;
     const text = extractReadableHtmlText(chapterDoc, heading);
 

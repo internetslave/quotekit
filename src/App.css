@@ -1314,7 +1314,11 @@ mark {
   gap: 12px;
   padding: 6px 14px calc(14px + env(safe-area-inset-bottom));
   color: var(--ink);
-  background: color-mix(in oklab, var(--paper-strong) 96%, transparent);
+  /* Fully opaque so chapter text can't bleed through the tab bar. The
+     previous 96% mix looked nice on top of plain paper but made the
+     sticky tabs unreadable once a long line of body copy scrolled
+     behind them. */
+  background: var(--paper-strong);
   border-top: 1px solid var(--hairline-strong);
   border-radius: var(--r-4) var(--r-4) 0 0;
   box-shadow: 0 -20px 50px rgba(60, 40, 18, 0.28);
@@ -2352,4 +2356,21 @@ mark {
   .offline-banner        { animation: none !important; }
   .chapter-drawer        { animation: none !important; }
   .chapter-drawer-backdrop { animation: none !important; }
+}
+
+/* ============================================================
+   Block 4 additions — small polish
+   ============================================================ */
+
+/* Over-goal celebration: when minutes read exceeds the daily target the
+   today-card gets a soft coral glow and the progress bar finishes solid. */
+.today-card.over-goal {
+  box-shadow: var(--shadow-md), 0 0 24px 4px color-mix(in oklab, var(--coral) 35%, transparent);
+}
+.today-card.over-goal .today-meta .progress-track > span {
+  background: linear-gradient(90deg, var(--gold), var(--coral));
+  filter: drop-shadow(0 0 6px color-mix(in oklab, var(--coral) 60%, transparent));
+}
+@media (prefers-reduced-motion: reduce) {
+  .today-card.over-goal .today-meta .progress-track > span { filter: none; }
 }

@@ -82,6 +82,10 @@ export function LibraryScreen({
   const minutesRead = dailyGoal?.minutesRead ?? 0;
   const goalMinutes = dailyGoal?.targetMinutes ?? settings.dailyGoalMinutes ?? 25;
   const goalPct = Math.min(100, Math.round((minutesRead / goalMinutes) * 100));
+  const overGoal = goalMinutes > 0 && minutesRead > goalMinutes;
+  // 1 decimal place, but trim a trailing ".0" so 2.0x renders as "2x".
+  const goalMultiplier =
+    goalMinutes > 0 ? (minutesRead / goalMinutes).toFixed(1).replace(/\.0$/, "") : "0";
 
   // Pick most-recently-updated book to surface in the Today card "Continue" pill.
   // Its streak is the canonical streak shown in the library — same number the
@@ -120,7 +124,7 @@ export function LibraryScreen({
         </button>
       </header>
 
-      <section className="today-card" aria-label="Today's reading">
+      <section className={`today-card${overGoal ? " over-goal" : ""}`} aria-label="Today's reading">
         <div
           className="streak-dial"
           style={{ ["--streak-pct" as string]: `${goalPct}%` }}
@@ -132,7 +136,11 @@ export function LibraryScreen({
           </div>
         </div>
         <div className="today-meta">
-          <strong>{minutesRead} of {goalMinutes} minutes today</strong>
+          <strong>
+            {overGoal
+              ? `Goal smashed: ${minutesRead} min · ${goalMultiplier}× daily target`
+              : `${minutesRead} of ${goalMinutes} minutes today`}
+          </strong>
           <span>{streak > 0 ? `${streak}-day streak · keep it going` : "Start your first reading streak"}</span>
           <span className="progress-track">
             <span style={{ width: `${goalPct}%` }} />

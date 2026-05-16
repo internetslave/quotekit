@@ -405,7 +405,7 @@ export function ReaderScreen({
       {book.format !== "pdf" ? (
         <section className="reader-mode-panel" aria-label="Reader view mode">
           <div>
-            <strong>{settings.readingMode === "page" ? "Cropped pages" : "Long scroll"}</strong>
+            <strong>{settings.readingMode === "page" ? "Paginated" : "Long scroll"}</strong>
             <span>
               {settings.readingMode === "page"
                 ? `${textPageIndex + 1} of ${textPageCount} in this chapter`
@@ -422,7 +422,7 @@ export function ReaderScreen({
               }}
             >
               <FileText aria-hidden="true" />
-              <span>Crop</span>
+              <span>Pages</span>
             </button>
             <button
               className={settings.readingMode === "scroll" ? "active" : ""}
